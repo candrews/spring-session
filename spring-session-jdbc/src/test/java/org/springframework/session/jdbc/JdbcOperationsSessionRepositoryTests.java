@@ -32,6 +32,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.jdbc.core.PreparedStatementSetter;
 import org.springframework.jdbc.core.ResultSetExtractor;
@@ -72,6 +73,8 @@ class JdbcOperationsSessionRepositoryTests {
 	@Mock
 	private JdbcOperations jdbcOperations;
 
+	private static final String MOCK_DATABASE_COMMON_NAME = "Mock Database";
+
 	private JdbcOperationsSessionRepository repository;
 
 	@BeforeEach
@@ -79,6 +82,7 @@ class JdbcOperationsSessionRepositoryTests {
 		MockitoAnnotations.initMocks(this);
 		this.repository = new JdbcOperationsSessionRepository(this.jdbcOperations,
 				TransactionOperations.withoutTransaction());
+		given(this.jdbcOperations.execute(isA(ConnectionCallback.class))).willReturn(MOCK_DATABASE_COMMON_NAME);
 	}
 
 	@Test
@@ -254,6 +258,7 @@ class JdbcOperationsSessionRepositoryTests {
 
 		assertThat(session.isNew()).isTrue();
 		assertThat(session.getMaxInactiveInterval()).isEqualTo(new MapSession().getMaxInactiveInterval());
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -266,6 +271,7 @@ class JdbcOperationsSessionRepositoryTests {
 
 		assertThat(session.isNew()).isTrue();
 		assertThat(session.getMaxInactiveInterval()).isEqualTo(Duration.ofSeconds(interval));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -275,6 +281,7 @@ class JdbcOperationsSessionRepositoryTests {
 		JdbcSession session = this.repository.createSession();
 		assertThat(session.isNew()).isFalse();
 		verify(this.jdbcOperations).update(startsWith("INSERT"), isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -286,6 +293,7 @@ class JdbcOperationsSessionRepositoryTests {
 
 		assertThat(session.isNew()).isFalse();
 		verify(this.jdbcOperations, times(1)).update(startsWith("INSERT"), isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -301,6 +309,7 @@ class JdbcOperationsSessionRepositoryTests {
 				isA(PreparedStatementSetter.class));
 		verify(this.jdbcOperations, times(1)).update(startsWith("INSERT INTO SPRING_SESSION_ATTRIBUTES("),
 				isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -317,6 +326,7 @@ class JdbcOperationsSessionRepositoryTests {
 				isA(PreparedStatementSetter.class));
 		verify(this.jdbcOperations, times(1)).batchUpdate(startsWith("INSERT INTO SPRING_SESSION_ATTRIBUTES("),
 				isA(BatchPreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -331,6 +341,7 @@ class JdbcOperationsSessionRepositoryTests {
 		assertThat(session.isNew()).isFalse();
 		verify(this.jdbcOperations, times(1)).update(startsWith("INSERT INTO SPRING_SESSION_ATTRIBUTES("),
 				isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -346,6 +357,7 @@ class JdbcOperationsSessionRepositoryTests {
 		assertThat(session.isNew()).isFalse();
 		verify(this.jdbcOperations, times(1)).batchUpdate(startsWith("INSERT INTO SPRING_SESSION_ATTRIBUTES("),
 				isA(BatchPreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -362,6 +374,7 @@ class JdbcOperationsSessionRepositoryTests {
 		assertThat(session.isNew()).isFalse();
 		verify(this.jdbcOperations, times(1)).update(startsWith("UPDATE SPRING_SESSION_ATTRIBUTES SET"),
 				isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -380,6 +393,7 @@ class JdbcOperationsSessionRepositoryTests {
 		assertThat(session.isNew()).isFalse();
 		verify(this.jdbcOperations, times(1)).batchUpdate(startsWith("UPDATE SPRING_SESSION_ATTRIBUTES SET"),
 				isA(BatchPreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -396,6 +410,7 @@ class JdbcOperationsSessionRepositoryTests {
 		assertThat(session.isNew()).isFalse();
 		verify(this.jdbcOperations, times(1)).update(startsWith("DELETE FROM SPRING_SESSION_ATTRIBUTES WHERE"),
 				isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -408,6 +423,7 @@ class JdbcOperationsSessionRepositoryTests {
 		this.repository.save(session);
 
 		assertThat(session.isNew()).isFalse();
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -426,6 +442,7 @@ class JdbcOperationsSessionRepositoryTests {
 		assertThat(session.isNew()).isFalse();
 		verify(this.jdbcOperations, times(1)).batchUpdate(startsWith("DELETE FROM SPRING_SESSION_ATTRIBUTES WHERE"),
 				isA(BatchPreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -441,6 +458,7 @@ class JdbcOperationsSessionRepositoryTests {
 		assertThat(session.isNew()).isFalse();
 		verify(this.jdbcOperations).update(startsWith("INSERT INTO SPRING_SESSION_ATTRIBUTES("),
 				isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -454,6 +472,7 @@ class JdbcOperationsSessionRepositoryTests {
 		this.repository.save(session);
 
 		assertThat(session.isNew()).isFalse();
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -471,6 +490,7 @@ class JdbcOperationsSessionRepositoryTests {
 		assertThat(session.isNew()).isFalse();
 		verify(this.jdbcOperations).update(startsWith("DELETE FROM SPRING_SESSION_ATTRIBUTES WHERE"),
 				isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -488,6 +508,7 @@ class JdbcOperationsSessionRepositoryTests {
 		assertThat(session.isNew()).isFalse();
 		verify(this.jdbcOperations).update(startsWith("UPDATE SPRING_SESSION_ATTRIBUTES SET"),
 				isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -502,6 +523,7 @@ class JdbcOperationsSessionRepositoryTests {
 		assertThat(session.isNew()).isFalse();
 		verify(this.jdbcOperations, times(1)).update(startsWith("UPDATE SPRING_SESSION SET"),
 				isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -513,6 +535,7 @@ class JdbcOperationsSessionRepositoryTests {
 		this.repository.save(session);
 
 		assertThat(session.isNew()).isFalse();
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -580,6 +603,7 @@ class JdbcOperationsSessionRepositoryTests {
 				.findByIndexNameAndIndexValue("testIndexName", indexValue);
 
 		assertThat(sessions).isEmpty();
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -656,6 +680,7 @@ class JdbcOperationsSessionRepositoryTests {
 		this.repository.save(session);
 		verify(this.jdbcOperations).update(startsWith("UPDATE SPRING_SESSION_ATTRIBUTES SET"),
 				isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -675,6 +700,7 @@ class JdbcOperationsSessionRepositoryTests {
 				.forClass(BatchPreparedStatementSetter.class);
 		verify(this.jdbcOperations).batchUpdate(startsWith("UPDATE SPRING_SESSION_ATTRIBUTES SET"), captor.capture());
 		assertThat(captor.getValue().getBatchSize()).isEqualTo(2);
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -694,6 +720,7 @@ class JdbcOperationsSessionRepositoryTests {
 				.forClass(BatchPreparedStatementSetter.class);
 		verify(this.jdbcOperations).batchUpdate(startsWith("UPDATE SPRING_SESSION_ATTRIBUTES SET"), captor.capture());
 		assertThat(captor.getValue().getBatchSize()).isEqualTo(3);
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -705,6 +732,7 @@ class JdbcOperationsSessionRepositoryTests {
 		session.setAttribute(attrName, "someValue");
 		verify(this.jdbcOperations).update(startsWith("INSERT INTO SPRING_SESSION_ATTRIBUTES("),
 				isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -717,6 +745,7 @@ class JdbcOperationsSessionRepositoryTests {
 		session.removeAttribute("attribute1");
 		verify(this.jdbcOperations).update(startsWith("DELETE FROM SPRING_SESSION_ATTRIBUTES WHERE"),
 				isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -726,6 +755,7 @@ class JdbcOperationsSessionRepositoryTests {
 		JdbcSession session = this.repository.new JdbcSession(new MapSession(), "primaryKey", false);
 		session.setMaxInactiveInterval(Duration.ofSeconds(1));
 		verify(this.jdbcOperations).update(startsWith("UPDATE SPRING_SESSION SET"), isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 
@@ -735,6 +765,7 @@ class JdbcOperationsSessionRepositoryTests {
 		JdbcSession session = this.repository.new JdbcSession(new MapSession(), "primaryKey", false);
 		session.setLastAccessedTime(Instant.now());
 		verify(this.jdbcOperations).update(startsWith("UPDATE SPRING_SESSION SET"), isA(PreparedStatementSetter.class));
+		verify(this.jdbcOperations, times(1)).execute(isA(ConnectionCallback.class));
 		verifyNoMoreInteractions(this.jdbcOperations);
 	}
 

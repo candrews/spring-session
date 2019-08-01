@@ -16,6 +16,7 @@
 
 package org.springframework.session.jdbc;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -41,8 +42,10 @@ import org.springframework.core.serializer.support.DeserializingConverter;
 import org.springframework.core.serializer.support.SerializingConverter;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.jdbc.core.ResultSetExtractor;
+import org.springframework.jdbc.support.JdbcUtils;
 import org.springframework.jdbc.support.lob.DefaultLobHandler;
 import org.springframework.jdbc.support.lob.LobHandler;
 import org.springframework.session.DelegatingIndexResolver;
@@ -152,6 +155,44 @@ public class JdbcOperationsSessionRepository
 			+ "WHERE SESSION_ID = ?";
 	// @formatter:on
 
+	/**
+	 * MERGE is SQL standard. It is supported by SQL Server and Oracle, and eventually
+	 * other databases.
+	 */
+	// @formatter:off
+	private static final String CREATE_SESSION_ATTRIBUTE_QUERY_MERGE = "MERGE INTO %TABLE_NAME%_ATTRIBUTES x "
+			+ "USING ( "
+			+ "	SELECT PRIMARY_ID as SESSION_PRIMARY_ID, ? as ATTRIBUTE_NAME, ? as ATTRIBUTE_BYTES "
+			+ "	FROM %TABLE_NAME% "
+			+ "	WHERE SESSION_ID = ? "
+			+ ") y "
+			+ "ON (x.SESSION_PRIMARY_ID = y.SESSION_PRIMARY_ID and x.ATTRIBUTE_NAME=y.ATTRIBUTE_NAME) "
+			+ "WHEN MATCHED THEN "
+			+ "	UPDATE SET ATTRIBUTE_BYTES = y.ATTRIBUTE_BYTES "
+			+ "WHEN NOT MATCHED THEN "
+			+ "	INSERT(SESSION_PRIMARY_ID, ATTRIBUTE_NAME, ATTRIBUTE_BYTES) VALUES (y.SESSION_PRIMARY_ID, y.ATTRIBUTE_NAME, y.ATTRIBUTE_BYTES)";
+	// @formatter:on
+
+	/**
+	 * ON DUPLICATE KEY UPDATE is MySQL/MariaDB specific.
+	 */
+	// @formatter:off
+	private static final String CREATE_SESSION_ATTRIBUTE_QUERY_ON_DUPLICATE_KEY_UPDATE = "INSERT INTO %TABLE_NAME%_ATTRIBUTES(SESSION_PRIMARY_ID, ATTRIBUTE_NAME,  ATTRIBUTE_BYTES) "
+			+ "SELECT PRIMARY_ID, ?, ? "
+			+ "FROM %TABLE_NAME% "
+			+ "WHERE SESSION_ID = ? ON DUPLICATE KEY UPDATE ATTRIBUTE_BYTES=VALUES(ATTRIBUTE_BYTES)";
+	// @formatter:on
+
+	/**
+	 * ON CONFLICT is PostgreSQL specific.
+	 */
+	// @formatter:off
+	private static final String CREATE_SESSION_ATTRIBUTE_QUERY_ON_CONFLICT = "INSERT INTO %TABLE_NAME%_ATTRIBUTES(SESSION_PRIMARY_ID, ATTRIBUTE_NAME,  ATTRIBUTE_BYTES) "
+			+ "SELECT PRIMARY_ID, ?, ? "
+			+ "FROM %TABLE_NAME% "
+			+ "WHERE SESSION_ID = ? ON CONFLICT(SESSION_PRIMARY_ID, ATTRIBUTE_NAME) DO UPDATE SET ATTRIBUTE_BYTES=EXCLUDED.ATTRIBUTE_BYTES";
+	// @formatter:on
+
 	// @formatter:off
 	private static final String GET_SESSION_QUERY = "SELECT S.PRIMARY_ID, S.SESSION_ID, S.CREATION_TIME, S.LAST_ACCESS_TIME, S.MAX_INACTIVE_INTERVAL, SA.ATTRIBUTE_NAME, SA.ATTRIBUTE_BYTES "
 			+ "FROM %TABLE_NAME% S "
@@ -202,6 +243,8 @@ public class JdbcOperationsSessionRepository
 	private final ResultSetExtractor<List<JdbcSession>> extractor = new SessionResultSetExtractor();
 
 	private final IndexResolver<JdbcSession> indexResolver;
+
+	private final String commonDatabaseName;
 
 	/**
 	 * The name of database table used by Spring Session to store sessions.
@@ -255,6 +298,7 @@ public class JdbcOperationsSessionRepository
 		this.indexResolver = new DelegatingIndexResolver<>(new PrincipalNameIndexResolver<>());
 		this.conversionService = createDefaultConversionService();
 		this.lobHandler = new DefaultLobHandler();
+		this.commonDatabaseName = getCommonDatabaseName();
 		prepareQueries();
 	}
 
@@ -608,8 +652,32 @@ public class JdbcOperationsSessionRepository
 	}
 
 	private void prepareQueries() {
+		final String createSessionAttributeQuery;
+		switch ((this.commonDatabaseName != null) ? this.commonDatabaseName : "Unknown") {
+		case "MySQL":
+			createSessionAttributeQuery = CREATE_SESSION_ATTRIBUTE_QUERY_ON_DUPLICATE_KEY_UPDATE;
+			break;
+		case "PostgreSQL":
+			createSessionAttributeQuery = CREATE_SESSION_ATTRIBUTE_QUERY_ON_CONFLICT;
+			break;
+		case "DB2":
+		case "Oracle":
+			createSessionAttributeQuery = CREATE_SESSION_ATTRIBUTE_QUERY_MERGE;
+			break;
+		case "Microsoft SQL Server":
+			// SQL Server needs the query to end with ";"
+			createSessionAttributeQuery = CREATE_SESSION_ATTRIBUTE_QUERY_MERGE + ";";
+			break;
+		default:
+			if (logger.isDebugEnabled()) {
+				logger.warn("Using default create session attribute query because the database's common name, \""
+						+ commonDatabaseName + "\", is not known");
+			}
+			createSessionAttributeQuery = CREATE_SESSION_ATTRIBUTE_QUERY;
+
+		}
 		this.createSessionQuery = getQuery(CREATE_SESSION_QUERY);
-		this.createSessionAttributeQuery = getQuery(CREATE_SESSION_ATTRIBUTE_QUERY);
+		this.createSessionAttributeQuery = getQuery(createSessionAttributeQuery);
 		this.getSessionQuery = getQuery(GET_SESSION_QUERY);
 		this.updateSessionQuery = getQuery(UPDATE_SESSION_QUERY);
 		this.updateSessionAttributeQuery = getQuery(UPDATE_SESSION_ATTRIBUTE_QUERY);
@@ -617,6 +685,23 @@ public class JdbcOperationsSessionRepository
 		this.deleteSessionQuery = getQuery(DELETE_SESSION_QUERY);
 		this.listSessionsByPrincipalNameQuery = getQuery(LIST_SESSIONS_BY_PRINCIPAL_NAME_QUERY);
 		this.deleteSessionsByExpiryTimeQuery = getQuery(DELETE_SESSIONS_BY_EXPIRY_TIME_QUERY);
+	}
+
+	private String getCommonDatabaseName() {
+		try {
+			return this.jdbcOperations.execute(new ConnectionCallback<String>() {
+				@Override
+				public String doInConnection(final Connection connection) throws SQLException, DataAccessException {
+					return JdbcUtils.commonDatabaseName(connection.getMetaData().getDatabaseProductName());
+				}
+			});
+		}
+		catch (Exception ex) {
+			if (logger.isWarnEnabled()) {
+				logger.warn("Unable to determine database implementation common name", ex);
+			}
+			return null;
+		}
 	}
 
 	private LobHandler getLobHandler() {
